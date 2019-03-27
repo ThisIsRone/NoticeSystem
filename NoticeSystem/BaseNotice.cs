@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using UnityEngine;
 
 namespace NoticeSystem
 {
@@ -22,7 +23,7 @@ namespace NoticeSystem
         /// <summary>
         /// 子级Tip
         /// </summary>
-        internal List<BaseNotice> childs;
+        internal List<BaseNotice> childs { get; private set; }
 
         /// <summary>
         /// 是否激活
@@ -32,19 +33,17 @@ namespace NoticeSystem
         /// <summary>
         /// 红点通知回调
         /// </summary>
-        protected Action<BaseNotice, bool> notifyCallBack;
-
-        internal virtual void AddNotifyCallBack(Action<BaseNotice, bool> action)
-        {
-            notifyCallBack += action;
-        }
+        internal List<MonoNoticeAction> notifyCallBacks { get; private set; }
 
         internal virtual void Notify(BaseNotice notice,bool isAlive)
         {
             this.isAlive = isAlive;
-            if (notifyCallBack != null)
+            if (notifyCallBacks != null)
             {
-                notifyCallBack.Invoke(notice, isAlive);
+                for (int i = 0; i < notifyCallBacks.Count; i++)
+                {
+                    notifyCallBacks[i].Invoke();
+                }
             }
         }
 
@@ -64,14 +63,78 @@ namespace NoticeSystem
             }
         }
 
+        internal virtual void RemoveChild(BaseNotice child)
+        {
+            if (child != null)
+            {
+                if (childs != null)
+                {
+                    if (childs.Contains(child))
+                    {
+                        childs.Remove(child);
+                    }
+                }
+            }
+        }
+
+        internal virtual void RegisterCallBack(Transform root, Action<BaseNotice> notifyCallBack)
+        {
+            MonoNoticeAction monoNotice = root.GetComponent<MonoNoticeAction>();
+            if (monoNotice == null)
+            {
+                monoNotice = root.gameObject.AddComponent<MonoNoticeAction>();
+                if (notifyCallBacks  == null)
+                {
+                    notifyCallBacks = new List<MonoNoticeAction>();
+                }
+                monoNotice.SetOwn(parent);
+                notifyCallBacks.Add(monoNotice);
+            }
+            monoNotice.AddCallBack(notifyCallBack);
+        }
+
+        internal virtual void UnregisterCallBack(Transform root, Action<BaseNotice> notifyCallBack)
+        {
+            MonoNoticeAction monoNotice = root.GetComponent<MonoNoticeAction>();
+            if (monoNotice != null)
+            {
+                monoNotice.SetOwn(parent);
+                monoNotice.RemoveCallBack(notifyCallBack);
+                if (monoNotice.CallCount == 0)
+                {
+                    GameObject.Destroy(monoNotice);
+                }
+            }
+        }
+
+        internal void RemoveMonoAction(MonoNoticeAction monoNotice)
+        {
+            if (notifyCallBacks != null)
+            {
+                if (notifyCallBacks.Contains(monoNotice))
+                {
+                    notifyCallBacks.Remove(monoNotice);
+                }
+            }
+        }
+
         internal virtual void SetParent(BaseNotice parent)
         {
             this.parent = parent;
         }
 
+        internal virtual void Clear()
+        {
+            notifyCallBacks.Clear();
+        }
+
         internal virtual void Reset()//子父级关系不重置
         {
-            notifyCallBack = null;
+            for (int i = 0; i < notifyCallBacks.Count; i++)
+            {
+                GameObject.Destroy(notifyCallBacks[i]);
+            }
+            notifyCallBacks.Clear();
             isAlive = false;
         }
     }
